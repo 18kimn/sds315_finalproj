@@ -1,0 +1,39 @@
+---
+title: "Do animated graphs increase the effectiveness of email-based event recruitment at Yale?"
+subtitle: "A Final Project for S\\&DS315"
+author: "Deon Ababio, Alex Gordon, and Nathan Kim"
+date: "December 11th, 2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F, message = F, warning = F)
+library(tidyverse)
+library(here)
+library(cowplot)
+library(stargazer)
+library(showtext)
+library(chimpr) #from https://github.com/sckott/chimpr (use devtools::install_github("sckott/chimpr"))
+
+files <-  stringr::str_subset(list.files(pattern = "Rmd"), "index", negate = T)
+
+#our mailchimp API key is stored on nathan's (personal) pc, aka outside of the repo
+chimp_key <- Sys.getenv("MAILCHIMP_KEY")
+
+font_add_google("Lato")
+showtext_auto()
+showtext_opts(dpi = 300)
+
+theme_lato <- function(base_family = "Lato", base_size = 12, ...) {
+  hrbrthemes::theme_ipsum_rc(base_family = "Lato") + 
+    theme(axis.title.x = element_text(hjust = 0.5), 
+          axis.title.y = element_text(vjust = .5))
+}
+
+theme_set(theme_lato())
+update_geom_defaults("text", list(family = "Lato", fontface = "bold"))
+```
+
+
+```{r, child=files}
+```

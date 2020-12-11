@@ -1,0 +1,21 @@
+
+# Methods
+
+The purpose of this project was to discover if animated graphics lead to an increase in signups. We had four different treatment groups:
+
+
+1.	A static line graph of voter turnout rates for the midterm and presidential elections from 1880 to the present.
+
+2.	An animated line graph of voter turnout rates for the midterm and presidential elections from 1880 to the present
+
+3.	Static bar graph of registered voters and turnout among racial lines in 2016
+ 
+4.	Animated bar graph of registered voters and turnout among racial lines in 2016
+
+These graphics were generated with the `ggplot2` and `showtext` packages, with the `gganimate` and `magick` packages in R to convert the static images into animated plots.^[An annoying issue was had in formatting, where custom fonts implemented via the `showtext` package somehow made random frames distorted in the `gganimate`d plots. These frames were manually removed and then the `magick` package was used to stitch the remaining frames back together, with the end result being a GIF that misses a few frames and therefore could have appeared rocky. After watching both sets of GIFs several times I decided this was a negligible issue.] The voter turnout trends since 1880 in the line graph was taken from the [United States Elections Project](http://www.electproject.org/national-1789-present), and the trends by race seen in the bar graphs came from the [U.S. Census Bureau](https://www.census.gov/data/tables/time-series/demo/voting-and-registration/voting-historical-time-series.html). 
+ 
+When deciding how to place people in certain treatment groups, we used a simple random sample. We used a random number generator to equally place the same number of people in each group. There are many statistical concepts that we could have used to increase our precision, but decided that it was not necessary. For example, we could have used blocked random assignment, which is arranging of experimental units in groups that are similar to one another, but we did not see any covariates that could play a factor in affecting our results.
+
+We used Mailchimp and the Mailchimp API (through the `chimpr` package in R) to contact students and track several important variables like the email open rate, the time of opening, whether students opened the email twice, and whether the students clicked the link for the Google Form where they could sign up for our "event." 
+
+We then ran a balance check across residential colleges and whether students are on leave, followed by two checks for treatment noncompliance. Finally, we ran our main analyses to study whether any treatments had a significant effect on form sign-ups. We specifically ran a set of t-tests with Bonferroni corrections search for differences across the four treatment groups, and then ran a linear regression with only the static-only and animated-only groups. 

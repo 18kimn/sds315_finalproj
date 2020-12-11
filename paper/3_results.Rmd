@@ -1,0 +1,163 @@
+
+
+```{r import}
+conn <- ChmpClient$new(dc = "us2", key = chimp_key)
+id_vec <- ChmpReports$new(conn)
+id_vec <- id_vec$all()$reports$id
+campaign_info <- ChmpCampaigns$new(conn)$all()$campaigns %>% 
+  mutate(send_time = anytime::anytime(send_time),
+         openrate = .$report_summary$open_rate,
+         clicks = .$report_summary$click_rate) %>% 
+  select(id, send_time, openrate, clicks) 
+
+reports <- map_dfr(id_vec, function(report_id){
+  report <- ChmpReports$new(conn, id = report_id)
+  report_tbl <- report$open_details(count = 1000)$members %>% 
+    mutate(info = report$info()$campaign_title)
+  return(report_tbl)
+})
+
+reports <- reports %>% 
+  group_by(info) %>% 
+  left_join(campaign_info, by = c("campaign_id" = "id")) %>% 
+  mutate(first_open_time =unlist(map(opens, function(x) x[1,])),
+         first_open_time = anytime::anytime(first_open_time),
+         time_diff = first_open_time - send_time,
+         grp =  str_remove_all(info, "( - Election Day)") %>% 
+           str_replace("_", " ") %>% 
+           str_to_title(),
+         grp = as_factor(grp) %>% 
+           fct_recode( "Control (No animation)" = "Control",
+                       "Animated Bar, Static Line" = "Treat 1",
+                       "Static Bar, Animated Line" = "Treat 2",
+                       "Both Animated" = "Treat 3"),
+         set = ifelse(str_detect(info, "Election"), "Follow-up", "Initial")) %>% 
+  arrange(info, time_diff) %>% 
+  mutate(counter = 1:n())
+
+maxes <- reports %>% 
+  group_by(grp, set) %>% 
+  top_n(1, wt = time_diff) %>% 
+  mutate(time_diff = as.difftime(4000, units = "mins")) %>% 
+  select(grp,set,counter, time_diff)
+
+reports <- reports %>% bind_rows(maxes)
+         # first_open_time = first_open_time %>% 
+         #   str_replace("T", " ") %>% 
+         #   str_remove("\\+00\\:00"))
+
+```
+
+# Results
+
+## Treatment noncompliance
+
+As we see in the following two figures, treatment noncompliance was unexpectedly a problem for our research design. Because the subject line of the emails were the same across all four treatment groups and each email was sent at the same time, we did not expect any difference to appear across the four treatment groups in terms of treatment receipt. However, as the chart below shows, the treatment group receiving an email with an animated bar chart and a static line chart opened the initial email at a much lower rate than the other three treatment groups. Just as confusingly, this trend disappears in the follow-up email. 
+
+We aren't sure what happened here; as some classmates noted in their final project presentation, Yale SIS or Gmail could have labeled our email as spam in this case and many students may not have received the treatment. This still would not explain why only one treatment group was marked as spam, or why this did not happen with our follow-up emails. We proceed onward with a grain of salt at the ready, and limit our study from here to specifically those candidates that opened at least one email. 
+
+
+```{r cumulative_opens, width = 8, height =5}
+
+cumu_opens <- reports %>% 
+  ggplot(aes(x = time_diff, y = counter, color = grp, linetype = set)) + 
+  geom_line(size = 1) +
+  #scale_x_continuous(limits  = c(NA, 4000)) + 
+  scale_y_continuous(limits = c(100, 305)) + 
+  labs(y = "Opens", x = "Minutes since email was sent", 
+       title = "Tracking email open rates across our campaigns",
+       color = NULL, linetype = NULL) 
+cumu_opens
+ggsave(here("figures/opens.png"), cumu_opens, width  =8, height = 5) 
+
+```
+
+
+
+Some initial summary statistics in Table 1 and Figure 2 show the far bigger "weakness" of our study: engagement with the email to fill out the form was far too low to be able to discern a statistically significant test of whether animated graphics assist with event registration. We present three metrics here of engagement: whether students returned to the email a second time, whether students clicked on the form, whether they actually filled out the form. Only the metric of whether the students actually filled out the form would be relevant for a club aiming to boost event registration. 
+
+As we see from these statistics, although a number of people returned to either email a second time, far fewer people actually clicked on the form and an even smaller number of people filled out the form. Trends from the three metrics also do not match each other, given the animated bar and static line treatment grop opened the follow-up email a second time at a noticeably lower rate than other groups but had the highest percentage of form clicks and form fills. 
+
+
+```{r summary_table, results = "asis"}
+
+second_opens <- reports %>% 
+  group_by( grp) %>% 
+  summarize(open_freq = mean(opens_count > 1, na.rm=T))
+
+
+fills <- c(4,1,2,2,2,1,3,1,1,2)
+rates <-  table(fills)/table(reports$merge_fields$MMERGE7 )
+rates <- tibble(set = "Follow-up", grp = unique(second_opens$grp), `Form fill rate` = as.numeric(rates)) 
+
+clicks <- reports %>% drop_na(time_diff,clicks) %>% 
+  group_by(grp) %>% 
+  top_n(1, wt = time_diff) %>% 
+  select(clicks) %>% 
+  full_join(rates, by = "grp")
+
+full_join(second_opens, clicks, by = "grp") %>% 
+  filter(set == "Follow-up") %>% 
+  select(-set) %>% 
+  mutate(grp = as.character(grp), 
+         across(where(is.numeric), ~ifelse(is.na(.), NA_character_, paste0(round(.*100,2), "%")))) %>% 
+  rename(`Treatment Group` = grp,
+         `Opened either email a second time` = open_freq,
+         `Form click rate` = clicks) %>% 
+  stargazer(summary = F, header = F, 
+            title = "Summary of Response Statistics Across Treatment Groups")
+
+```
+
+
+
+
+```{r summary_chart}
+summary_chart <- full_join(second_opens, clicks, by = "grp") %>% 
+  rename(`Treatment Group` = grp,
+         `Opened email a second time` = open_freq,
+         `Form click rate` = clicks) %>% 
+  pivot_longer(cols = c(`Opened email a second time`, `Form click rate`, `Form fill rate`)) %>% 
+  ggplot(aes(fill = `Treatment Group`, x = name, y = value)) + 
+  geom_bar(stat = "identity", position = "dodge") + 
+  labs(fill = NULL, y = "Rate", x = NULL,
+       title = "Summary statistics of response variables")
+ggsave(here("figures/summary_chart.png"), summary_chart, width  =8, height = 5) 
+
+```
+
+Going further with a set of pairwise t-tests with Bonferroni corrections, we confirm our suspicions that there is no significant difference in form response rates across all four treatment groups. A linear regression using just the control group that received only static images and the both-animated group, which performs a similar test without the Bonferroni correction, returns a similar result that animations did not have a significant impact on event registration, be it positive or negative, compared to emails without graphics. 
+
+```{r t_test, results = "asis"}
+
+#i can't figure out how to do this the "right" way but this hacks it well enough for our presentation
+rates <- rates %>% 
+  mutate(n = table(reports$merge_fields$MMERGE7)) 
+
+dta <- tibble(id = unlist(map2(unique(rates$grp), rates$n, function(x,y) rep(x,y)))) %>% 
+  group_by(id) %>% 
+  mutate(counter = 1:n()) %>% 
+  group_split() %>% 
+  map2_dfr(c(4,4,1,1), function(x,y) mutate(x, filled = ifelse(counter <=y, 1, 0)))
+
+pairwise.t.test(dta$filled, dta$id, p.adjust.method = "bonf")$p.value %>% 
+  as_tibble(rownames = "Comparison Group") %>% 
+  mutate(across(where(is.numeric), ~round(., 4))) %>% 
+  stargazer(header = F, summary = F,
+            title = "P-values from pairwise comparisons using t-tests, pooled SD, and Bonferroni corrections")
+
+
+```
+
+
+```{r lm, results = "asis"}
+dta <- dta %>% filter(id %in% c("Control (No animation)", "Both Animated")) %>% 
+  rename("Treatment group = " = id, "Fill rate" =  filled)
+
+lm(`Fill rate` ~ `Treatment group = `, data=dta ) %>% 
+  stargazer(type = "latex", header = F,
+            title = "Model-based comparison among just animated and static (control) treatment groups.") 
+  
+
+
+```
