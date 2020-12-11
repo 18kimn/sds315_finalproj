@@ -35,6 +35,7 @@ reports <- reports %>%
   arrange(info, time_diff) %>% 
   mutate(counter = 1:n())
 
+students <- readRDS(here("data/students.RDS"))
 maxes <- reports %>% 
   group_by(grp, set) %>% 
   top_n(1, wt = time_diff) %>% 
@@ -42,6 +43,9 @@ maxes <- reports %>%
   select(grp,set,counter, time_diff)
 
 reports <- reports %>% bind_rows(maxes)
+
+reports <- left_join(reports, students, 
+                     by = c("email_address" = "email"))
          # first_open_time = first_open_time %>% 
          #   str_replace("T", " ") %>% 
          #   str_remove("\\+00\\:00"))
@@ -49,6 +53,56 @@ reports <- reports %>% bind_rows(maxes)
 ```
 
 # Results
+
+## Balance check
+
+```{r balance_check, results = "asis"}
+
+
+bcheck <- map_dfr(id_vec, function(report_id){
+  report <- ChmpReports$new(conn, id = report_id)
+  report_tbl <- report$sent_to(count = 1000)$sent_to %>% 
+    mutate(info = report$info()$campaign_title)
+  return(report_tbl)
+}) %>% 
+  select(email_address, open_count, info) %>% 
+  mutate(grp =  str_remove_all(info, "( - Election Day)") %>% 
+           str_replace("_", " ") %>% 
+           str_to_title(),
+         grp = as_factor(grp) %>% 
+           fct_recode( "Control (No animation)" = "Control",
+                       "Animated Bar, Static Line" = "Treat 1",
+                       "Static Bar, Animated Line" = "Treat 2",
+                       "Both Animated" = "Treat 3"),
+         set = ifelse(str_detect(info, "Election"), "Follow-up", "Initial")) %>% 
+  left_join(students, by = c("email_address" = "email"))
+
+bcheck %>% group_by(college, grp) %>% 
+  count() %>% 
+  group_by(college) %>% 
+  mutate(n = paste0(round(100*n/sum(n), 2), "%")) %>% 
+  pivot_wider(names_from = grp, values_from = n) %>% 
+  drop_na(college) %>% 
+  rename(`Residential College` = college) %>% 
+  stargazer(header = F, summary =F, rownames = F)
+```
+```{r balance_check_plot, fig.width = 8, fig.height = 4}
+
+bcheck_plot <- bcheck %>% group_by(college, grp) %>% 
+  count() %>% ungroup() %>% 
+  drop_na(college) %>% 
+  group_by(college) %>% 
+  mutate(n = 100* n/sum(n)) %>% 
+  ggplot(aes(x = college, y = n, group = grp, fill = grp)) + 
+  geom_bar(stat = "identity") + 
+  labs(y = "Percentage received",  x = NULL, fill = NULL,
+       title = "Balance check of treatment receipt by residential college") + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) + 
+  theme(axis.text.x = element_text( size = 8, vjust = grid::unit(c(-.5, 1), "points")))
+bcheck_plot
+ggsave(here("figures/bcheck.png"), plot = bcheck_plot, width = 8, height = 4)
+
+```
 
 ## Treatment noncompliance
 
@@ -62,8 +116,8 @@ We aren't sure what happened here; as some classmates noted in their final proje
 cumu_opens <- reports %>% 
   ggplot(aes(x = time_diff, y = counter, color = grp, linetype = set)) + 
   geom_line(size = 1) +
-  #scale_x_continuous(limits  = c(NA, 4000)) + 
-  scale_y_continuous(limits = c(100, 305)) + 
+  scale_x_continuous(limits  = c(NA, 4000)) + 
+  scale_y_continuous(limits = c(100, 320)) + 
   labs(y = "Opens", x = "Minutes since email was sent", 
        title = "Tracking email open rates across our campaigns",
        color = NULL, linetype = NULL) 
@@ -73,6 +127,7 @@ ggsave(here("figures/opens.png"), cumu_opens, width  =8, height = 5)
 ```
 
 
+## Summary statistics 
 
 Some initial summary statistics in Table 1 and Figure 2 show the far bigger "weakness" of our study: engagement with the email to fill out the form was far too low to be able to discern a statistically significant test of whether animated graphics assist with event registration. We present three metrics here of engagement: whether students returned to the email a second time, whether students clicked on the form, whether they actually filled out the form. Only the metric of whether the students actually filled out the form would be relevant for a club aiming to boost event registration. 
 
@@ -125,6 +180,8 @@ summary_chart <- full_join(second_opens, clicks, by = "grp") %>%
 ggsave(here("figures/summary_chart.png"), summary_chart, width  =8, height = 5) 
 
 ```
+
+## Pairwise comparisons and linear regression
 
 Going further with a set of pairwise t-tests with Bonferroni corrections, we confirm our suspicions that there is no significant difference in form response rates across all four treatment groups. A linear regression using just the control group that received only static images and the both-animated group, which performs a similar test without the Bonferroni correction, returns a similar result that animations did not have a significant impact on event registration, be it positive or negative, compared to emails without graphics. 
 
