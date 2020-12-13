@@ -12,9 +12,10 @@ library(tidyverse)
 library(here)
 library(cowplot)
 library(stargazer)
+library(stringi)
 library(showtext)
 library(chimpr) #from https://github.com/sckott/chimpr (use devtools::install_github("sckott/chimpr"))
-
+extrafont::loadfonts()
 files <-  stringr::str_subset(list.files(pattern = "Rmd"), "index", negate = T)
 
 #our mailchimp API key is stored on nathan's (personal) pc, aka outside of the repo
@@ -29,10 +30,63 @@ theme_lato <- function(base_family = "Lato", base_size = 12, ...) {
     theme(axis.title.x = element_text(hjust = 0.5), 
           axis.title.y = element_text(vjust = .5))
 }
-
+pal <- rcartocolor::carto_pal(12, "Pastel")[c(1,4,5,7)]
 theme_set(theme_lato())
 update_geom_defaults("text", list(family = "Lato", fontface = "bold"))
 ```
+
+```{r import}
+conn <- ChmpClient$new(dc = "us2", key = chimp_key)
+id_vec <- ChmpReports$new(conn)
+id_vec <- id_vec$all()$reports$id
+campaign_info <- ChmpCampaigns$new(conn)$all()$campaigns %>% 
+  mutate(send_time = anytime::anytime(send_time),
+         openrate = .$report_summary$open_rate,
+         clicks = .$report_summary$click_rate) %>% 
+  select(id, send_time, openrate, clicks) 
+
+reports <- map_dfr(id_vec, function(report_id){
+  report <- ChmpReports$new(conn, id = report_id)
+  report_tbl <- report$open_details(count = 1000)$members %>% 
+    mutate(info = report$info()$campaign_title)
+  return(report_tbl)
+})
+
+reports <- reports %>% 
+  group_by(info) %>% 
+  left_join(campaign_info, by = c("campaign_id" = "id")) %>% 
+  mutate(first_open_time =unlist(map(opens, function(x) x[1,])),
+         first_open_time = anytime::anytime(first_open_time),
+         time_diff = first_open_time - send_time,
+         grp =  str_remove_all(info, "( - Election Day)") %>% 
+           str_replace("_", " ") %>% 
+           str_to_title(),
+         grp = as_factor(grp) %>% 
+           fct_recode( "Control (No animation)" = "Control",
+                       "Animated Bar, Static Line" = "Treat 1",
+                       "Static Bar, Animated Line" = "Treat 2",
+                       "Both Animated" = "Treat 3"),
+         set = ifelse(str_detect(info, "Election"), "Follow-up", "Initial")) %>% 
+  arrange(info, time_diff) %>% 
+  mutate(counter = 1:n())
+
+students <- readRDS(here("data/students.RDS"))
+maxes <- reports %>% 
+  group_by(grp, set) %>% 
+  top_n(1, wt = time_diff) %>% 
+  mutate(time_diff = as.difftime(4000, units = "mins")) %>% 
+  select(grp,set,counter, time_diff)
+
+reports <- reports %>% bind_rows(maxes)
+
+reports <- left_join(reports, students, 
+                     by = c("email_address" = "email"))
+         # first_open_time = first_open_time %>% 
+         #   str_replace("T", " ") %>% 
+         #   str_remove("\\+00\\:00"))
+
+```
+
 
 
 ```{r, child=files}

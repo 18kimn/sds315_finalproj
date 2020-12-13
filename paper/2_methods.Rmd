@@ -16,6 +16,129 @@ These graphics were generated with the `ggplot2` and `showtext` packages, with t
  
 When deciding how to place people in certain treatment groups, we used a simple random sample. We used a random number generator to equally place the same number of people in each group. There are many statistical concepts that we could have used to increase our precision, but decided that it was not necessary. For example, we could have used blocked random assignment, which is arranging of experimental units in groups that are similar to one another, but we did not see any covariates that could play a factor in affecting our results.
 
-We used Mailchimp and the Mailchimp API (through the `chimpr` package in R) to contact students and track several important variables like the email open rate, the time of opening, whether students opened the email twice, and whether the students clicked the link for the Google Form where they could sign up for our "event." 
+We ran a balance check across residential colleges and whether students are on leave, followed by a check for treatment noncompliance. Treatment noncompliance for our study was defined as the rate at which participants did not open the email at all, given they would not receive the treatment. 
 
-We then ran a balance check across residential colleges and whether students are on leave, followed by two checks for treatment noncompliance. Finally, we ran our main analyses to study whether any treatments had a significant effect on form sign-ups. We specifically ran a set of t-tests with Bonferroni corrections search for differences across the four treatment groups, and then ran a linear regression with only the static-only and animated-only groups. 
+We used Mailchimp and the Mailchimp API (through the `chimpr` package in R) to contact students and track several important variables like the email open rate, the time of opening, whether students opened the email twice, and whether the students clicked the link for the Google Form where they could sign up for our "event." Finally, we ran our main analyses to study whether any treatments had a significant effect on form sign-ups. We specifically ran a set of t-tests with Bonferroni corrections search for differences across the four treatment groups, and then ran a linear regression with only the static-only and animated-only groups. 
+
+
+### Balance check
+
+To confirm that our randomization process was sound, we ran a balance check across residential college. If the treatment was distributed completely randomly, within each residential college, an even percentage of students should have received the treatment.
+
+As we see from Table 1 and Figure 1 below, though there are some discrepancies where some colleges had a disproportionate amount of students in one treatment group over another, we are overall reassured that the treatment was distributed randomly across college. 
+
+```{r balance_check,results = "asis"}
+
+
+bcheck <- map_dfr(id_vec, function(report_id){
+  report <- ChmpReports$new(conn, id = report_id)
+  report_tbl <- report$sent_to(count = 1000)$sent_to %>% 
+    mutate(info = report$info()$campaign_title)
+  return(report_tbl)
+}) %>% 
+  select(email_address, open_count, info) %>% 
+  mutate(grp =  str_remove_all(info, "( - Election Day)") %>% 
+           str_replace("_", " ") %>% 
+           str_to_title(),
+         grp = as_factor(grp) %>% 
+           fct_recode( "Control (No animation)" = "Control",
+                       "Animated Bar, Static Line" = "Treat 1",
+                       "Static Bar, Animated Line" = "Treat 2",
+                       "Both Animated" = "Treat 3"),
+         set = ifelse(str_detect(info, "Election"), "Follow-up", "Initial")) %>% 
+  left_join(students, by = c("email_address" = "email"))
+str_wrap2 <- function (string, width = 80, indent = 0, exdent = 0) {
+    if (width <= 0) 
+        width <- 1
+    out <- stri_wrap(string, width = width, indent = indent, 
+        exdent = exdent, simplify = FALSE)
+    vapply(out, str_c, collapse = "\\\\", character(1))
+}
+
+#did this manually, see the weird latex code below
+
+# bcheck %>% group_by(college, grp) %>% 
+#   count() %>% 
+#   group_by(college) %>% 
+#   mutate(n = paste0(round(100*n/sum(n), 2), "%")) %>% 
+#   pivot_wider(names_from = grp, values_from = n) %>% 
+#   drop_na(college) %>% 
+#   rename(`Residential College` = college) %>% 
+#   rename_all(~str_wrap2(.,15)) %>% 
+#   stargazer(header = F, summary =F, rownames = F, column.sep.width = "2pt", 
+#             title = "Percentage in treatment group across each residential college")
+```
+
+\begin{table}[!htbp] \centering 
+  \caption{Percentage in treatment group across each residential college} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}} ccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+\shortstack{Residential \\ College} & Both Animated & \shortstack{Static Bar,\\ Animated Line } & \shortstack{Animated Bar,\\ Static Line} & \shortstack{Control (No\\ animation)} \\ 
+\hline \\[-1.8ex] 
+Benjamin Franklin & 23.71\% & 28.87\% & 23.71\% & 23.71\% \\ 
+Berkeley & 24\% & 29.33\% & 25.33\% & 21.33\% \\ 
+Branford & 23.6\% & 17.98\% & 24.72\% & 33.71\% \\ 
+Davenport & 23.81\% & 21.9\% & 24.76\% & 29.52\% \\ 
+Ezra Stiles & 22.89\% & 27.71\% & 25.3\% & 24.1\% \\ 
+Grace Hopper & 30.68\% & 18.18\% & 21.59\% & 29.55\% \\ 
+Jonathan Edwards & 21.18\% & 31.76\% & 24.71\% & 22.35\% \\ 
+Morse & 31.46\% & 21.35\% & 19.1\% & 28.09\% \\ 
+Pauli Murray & 23.64\% & 27.27\% & 28.18\% & 20.91\% \\ 
+Pierson & 23.86\% & 27.27\% & 22.73\% & 26.14\% \\ 
+Saybrook & 23.17\% & 26.83\% & 26.83\% & 23.17\% \\ 
+Silliman & 24.1\% & 19.28\% & 34.94\% & 21.69\% \\ 
+Timothy Dwight & 25.53\% & 25.53\% & 26.6\% & 22.34\% \\ 
+Trumbull & 26.32\% & 27.37\% & 22.11\% & 24.21\% \\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 
+
+```{r balance_check_plot, fig.width = 8, fig.height = 4}
+
+bcheck_plot <- bcheck %>% group_by(college, grp) %>% 
+  count() %>% ungroup() %>% 
+  drop_na(college) %>% 
+  group_by(college) %>% 
+  mutate(n = 100* n/sum(n)) %>% 
+  ggplot(aes(x = college, y = n, group = grp, fill = grp)) + 
+  geom_bar(stat = "identity") + 
+  labs(y = "Percentage received",  x = NULL, fill = NULL,
+       title = "Balance check of treatment receipt by residential college") + 
+  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) + 
+  scale_fill_manual(values = pal, labels = function(x) str_wrap(x, width =15)) + 
+  theme(axis.text.x = element_text( size = 8, vjust = grid::unit(c(-.5, 1), "points")))
+bcheck_plot
+ggsave(here("figures/bcheck.png"), plot = bcheck_plot, width = 8, height = 4)
+
+```
+
+
+### Treatment noncompliance
+
+We then checked for treatment nonconcompliance; as we see in the following two figures, treatment noncompliance was unexpectedly a problem for our research design. Because the subject line of the emails were the same across all four treatment groups and each email was sent at the same time, we did not expect any difference to appear across the four treatment groups in terms of treatment receipt. However, as the chart below shows, the treatment group receiving an email with an animated bar chart and a static line chart opened the initial email at a much lower rate than the other three treatment groups. Just as confusingly, this trend disappears in the follow-up email. 
+
+We aren't sure what happened here; as some classmates noted in their final project presentation, Yale SIS or Gmail could have labeled our email as spam in this case and many students may not have received the treatment. This still would not explain why only one treatment group was marked as spam, or why this did not happen with our follow-up emails. We proceed onward with a grain of salt at the ready, and limit our study from here to specifically those candidates that opened at least one email. 
+
+
+```{r cumulative_opens, width = 8, height =5}
+
+cumu_opens <- reports %>% 
+  ggplot(aes(x = time_diff, y = counter, color = str_wrap(grp, 15), linetype = set)) + 
+  geom_line(size = 1) +
+  scale_x_continuous(limits  = c(NA, 4000)) + 
+  scale_y_continuous(limits = c(100, 320)) + 
+  scale_color_manual(values = pal) + 
+  labs(y = "Opens", x = "Minutes since email was sent", 
+       title = "Tracking email open rates across our campaigns",
+       color = NULL, linetype = NULL) + 
+  guides(color = guide_legend(keyheight = 2))
+
+cumu_opens
+
+ggsave(here("figures/opens.png"), cumu_opens, width  =8, height = 5) 
+
+```
+
+

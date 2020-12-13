@@ -1,137 +1,14 @@
 
-
-```{r import}
-conn <- ChmpClient$new(dc = "us2", key = chimp_key)
-id_vec <- ChmpReports$new(conn)
-id_vec <- id_vec$all()$reports$id
-campaign_info <- ChmpCampaigns$new(conn)$all()$campaigns %>% 
-  mutate(send_time = anytime::anytime(send_time),
-         openrate = .$report_summary$open_rate,
-         clicks = .$report_summary$click_rate) %>% 
-  select(id, send_time, openrate, clicks) 
-
-reports <- map_dfr(id_vec, function(report_id){
-  report <- ChmpReports$new(conn, id = report_id)
-  report_tbl <- report$open_details(count = 1000)$members %>% 
-    mutate(info = report$info()$campaign_title)
-  return(report_tbl)
-})
-
-reports <- reports %>% 
-  group_by(info) %>% 
-  left_join(campaign_info, by = c("campaign_id" = "id")) %>% 
-  mutate(first_open_time =unlist(map(opens, function(x) x[1,])),
-         first_open_time = anytime::anytime(first_open_time),
-         time_diff = first_open_time - send_time,
-         grp =  str_remove_all(info, "( - Election Day)") %>% 
-           str_replace("_", " ") %>% 
-           str_to_title(),
-         grp = as_factor(grp) %>% 
-           fct_recode( "Control (No animation)" = "Control",
-                       "Animated Bar, Static Line" = "Treat 1",
-                       "Static Bar, Animated Line" = "Treat 2",
-                       "Both Animated" = "Treat 3"),
-         set = ifelse(str_detect(info, "Election"), "Follow-up", "Initial")) %>% 
-  arrange(info, time_diff) %>% 
-  mutate(counter = 1:n())
-
-students <- readRDS(here("data/students.RDS"))
-maxes <- reports %>% 
-  group_by(grp, set) %>% 
-  top_n(1, wt = time_diff) %>% 
-  mutate(time_diff = as.difftime(4000, units = "mins")) %>% 
-  select(grp,set,counter, time_diff)
-
-reports <- reports %>% bind_rows(maxes)
-
-reports <- left_join(reports, students, 
-                     by = c("email_address" = "email"))
-         # first_open_time = first_open_time %>% 
-         #   str_replace("T", " ") %>% 
-         #   str_remove("\\+00\\:00"))
-
-```
-
 # Results
 
-## Balance check
 
-```{r balance_check, results = "asis"}
+### Summary statistics of response variables
 
-
-bcheck <- map_dfr(id_vec, function(report_id){
-  report <- ChmpReports$new(conn, id = report_id)
-  report_tbl <- report$sent_to(count = 1000)$sent_to %>% 
-    mutate(info = report$info()$campaign_title)
-  return(report_tbl)
-}) %>% 
-  select(email_address, open_count, info) %>% 
-  mutate(grp =  str_remove_all(info, "( - Election Day)") %>% 
-           str_replace("_", " ") %>% 
-           str_to_title(),
-         grp = as_factor(grp) %>% 
-           fct_recode( "Control (No animation)" = "Control",
-                       "Animated Bar, Static Line" = "Treat 1",
-                       "Static Bar, Animated Line" = "Treat 2",
-                       "Both Animated" = "Treat 3"),
-         set = ifelse(str_detect(info, "Election"), "Follow-up", "Initial")) %>% 
-  left_join(students, by = c("email_address" = "email"))
-
-bcheck %>% group_by(college, grp) %>% 
-  count() %>% 
-  group_by(college) %>% 
-  mutate(n = paste0(round(100*n/sum(n), 2), "%")) %>% 
-  pivot_wider(names_from = grp, values_from = n) %>% 
-  drop_na(college) %>% 
-  rename(`Residential College` = college) %>% 
-  stargazer(header = F, summary =F, rownames = F)
-```
-```{r balance_check_plot, fig.width = 8, fig.height = 4}
-
-bcheck_plot <- bcheck %>% group_by(college, grp) %>% 
-  count() %>% ungroup() %>% 
-  drop_na(college) %>% 
-  group_by(college) %>% 
-  mutate(n = 100* n/sum(n)) %>% 
-  ggplot(aes(x = college, y = n, group = grp, fill = grp)) + 
-  geom_bar(stat = "identity") + 
-  labs(y = "Percentage received",  x = NULL, fill = NULL,
-       title = "Balance check of treatment receipt by residential college") + 
-  scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) + 
-  theme(axis.text.x = element_text( size = 8, vjust = grid::unit(c(-.5, 1), "points")))
-bcheck_plot
-ggsave(here("figures/bcheck.png"), plot = bcheck_plot, width = 8, height = 4)
-
-```
-
-## Treatment noncompliance
-
-As we see in the following two figures, treatment noncompliance was unexpectedly a problem for our research design. Because the subject line of the emails were the same across all four treatment groups and each email was sent at the same time, we did not expect any difference to appear across the four treatment groups in terms of treatment receipt. However, as the chart below shows, the treatment group receiving an email with an animated bar chart and a static line chart opened the initial email at a much lower rate than the other three treatment groups. Just as confusingly, this trend disappears in the follow-up email. 
-
-We aren't sure what happened here; as some classmates noted in their final project presentation, Yale SIS or Gmail could have labeled our email as spam in this case and many students may not have received the treatment. This still would not explain why only one treatment group was marked as spam, or why this did not happen with our follow-up emails. We proceed onward with a grain of salt at the ready, and limit our study from here to specifically those candidates that opened at least one email. 
-
-
-```{r cumulative_opens, width = 8, height =5}
-
-cumu_opens <- reports %>% 
-  ggplot(aes(x = time_diff, y = counter, color = grp, linetype = set)) + 
-  geom_line(size = 1) +
-  scale_x_continuous(limits  = c(NA, 4000)) + 
-  scale_y_continuous(limits = c(100, 320)) + 
-  labs(y = "Opens", x = "Minutes since email was sent", 
-       title = "Tracking email open rates across our campaigns",
-       color = NULL, linetype = NULL) 
-cumu_opens
-ggsave(here("figures/opens.png"), cumu_opens, width  =8, height = 5) 
-
-```
-
-
-## Summary statistics 
-
-Some initial summary statistics in Table 1 and Figure 2 show the far bigger "weakness" of our study: engagement with the email to fill out the form was far too low to be able to discern a statistically significant test of whether animated graphics assist with event registration. We present three metrics here of engagement: whether students returned to the email a second time, whether students clicked on the form, whether they actually filled out the form. Only the metric of whether the students actually filled out the form would be relevant for a club aiming to boost event registration. 
+Some initial summary statistics in Table 2s show a far bigger "weakness" of our study: engagement with the email to fill out the form was far too low to be able to discern a statistically significant test of whether animated graphics assist with event registration. We present three metrics here of engagement: whether students returned to the email a second time, whether students clicked on the form, whether they actually filled out the form. Only the metric of whether the students actually filled out the form would be relevant for a club aiming to boost event registration. 
 
 As we see from these statistics, although a number of people returned to either email a second time, far fewer people actually clicked on the form and an even smaller number of people filled out the form. Trends from the three metrics also do not match each other, given the animated bar and static line treatment grop opened the follow-up email a second time at a noticeably lower rate than other groups but had the highest percentage of form clicks and form fills. 
+
+These statistics also suggest that our study is not only hampered by an overall lack of engagement, but if anything a . Looking at the proportion of respondents who opened either the initial or the follow-up email a second time, we see that even though these groups do not suffer a problem of insufficient data, there still is not a large difference across all four groups. A difference from the control group to the both-animated group also appears, if at all, in the unexpected direction,
 
 
 ```{r summary_table, results = "asis"}
@@ -160,6 +37,7 @@ full_join(second_opens, clicks, by = "grp") %>%
          `Opened either email a second time` = open_freq,
          `Form click rate` = clicks) %>% 
   stargazer(summary = F, header = F, 
+            
             title = "Summary of Response Statistics Across Treatment Groups")
 
 ```
@@ -181,9 +59,9 @@ ggsave(here("figures/summary_chart.png"), summary_chart, width  =8, height = 5)
 
 ```
 
-## Pairwise comparisons and linear regression
+### Pairwise comparisons and linear regression
 
-Going further with a set of pairwise t-tests with Bonferroni corrections, we confirm our suspicions that there is no significant difference in form response rates across all four treatment groups. A linear regression using just the control group that received only static images and the both-animated group, which performs a similar test without the Bonferroni correction, returns a similar result that animations did not have a significant impact on event registration, be it positive or negative, compared to emails without graphics. 
+Going further with a set of pairwise t-tests with Bonferroni corrections (Table 3), we confirm our suspicions that there is no significant difference in form response rates across all four treatment groups. A linear regression (Table 4) using just the control group that received only static images and the both-animated group, which performs a similar test without the Bonferroni correction, returns a similar result that animations did not have a significant impact on event registration, be it positive or negative, compared to emails without graphics. 
 
 ```{r t_test, results = "asis"}
 
@@ -197,24 +75,107 @@ dta <- tibble(id = unlist(map2(unique(rates$grp), rates$n, function(x,y) rep(x,y
   group_split() %>% 
   map2_dfr(c(4,4,1,1), function(x,y) mutate(x, filled = ifelse(counter <=y, 1, 0)))
 
-pairwise.t.test(dta$filled, dta$id, p.adjust.method = "bonf")$p.value %>% 
-  as_tibble(rownames = "Comparison Group") %>% 
-  mutate(across(where(is.numeric), ~round(., 4))) %>% 
-  stargazer(header = F, summary = F,
-            title = "P-values from pairwise comparisons using t-tests, pooled SD, and Bonferroni corrections")
+# pairwise.t.test(dta$filled, dta$id, p.adjust.method = "bonf")$p.value %>% 
+#   as_tibble(rownames = "Comparison Group") %>% 
+#   mutate(across(where(is.numeric), ~round(., 4))) %>% 
+#   rename_all(~str_wrap2(.,15))  %>% 
+#   stargazer(header = F, summary = F,
+#             title = "P-values from pairwise comparisons using t-tests, pooled SD, and Bonferroni corrections")
 
 
 ```
 
+\begin{table}[!htbp] \centering 
+  \caption{P-values from pairwise comparisons using t-tests, pooled SD, and Bonferroni corrections} 
+  \label{} 
+\begin{tabular}{@{\extracolsep{5pt}} ccccc} 
+\\[-1.8ex]\hline 
+\hline \\[-1.8ex] 
+ & \shortstack{Comparison\\ Group} & \shortstack{Control (No\\ animation)} & \shortstack{Animated Bar,\\ Static Line} & \shortstack{Static Bar,\\ Animated Line} \\ 
+\hline \\[-1.8ex] 
+1 & Animated Bar, Static Line & 1 & NA & NA \\ 
+2 & Static Bar, Animated Line & 1 & 0.8995 & NA \\ 
+3 & Both Animated & 1 & 0.892 & 1 \\ 
+\hline \\[-1.8ex] 
+\end{tabular} 
+\end{table} 
 
 ```{r lm, results = "asis"}
-dta <- dta %>% filter(id %in% c("Control (No animation)", "Both Animated")) %>% 
-  rename("Treatment group = " = id, "Fill rate" =  filled)
+dta2 <- dta %>% filter(id %in% c("Control (No animation)", "Both Animated")) 
+dta3 <- dta %>% filter(id %in% c("Static Bar, Animated Line", "Animated Bar, Static Line")) 
 
-lm(`Fill rate` ~ `Treatment group = `, data=dta ) %>% 
-  stargazer(type = "latex", header = F,
+
+mod1 <- lm(filled ~ id, data=dta2 ) 
+#mod2 <- lm(filled ~ id, data= dta3)
+stargazer(mod1,  header = F,
+          covariate.labels = "Treatment Group = Both Animated",
+            dep.var.caption = "", 
+            dep.var.labels = "Fill rate", type = "latex", 
             title = "Model-based comparison among just animated and static (control) treatment groups.") 
   
 
 
 ```
+
+### Power analysis
+
+Evidently, our research design did not find a significant difference between the animation group and the control group. But instead of being a problem of how our treatment was implemented, it could have been simply an issue of not having enough participants. We purposefully cast quite a large net (the entire first year class, a total of 1,265 students) to avoid this issue, but maybe a future experiment could go even larger and thus find significance. We ran a power analysis to find how increasing sample size could help our search for power, specifically testing fifteen sample sizes from 2,000 to 20,000 participants and a hypothesized treatment effect of .006, with 200 simulated experiments each. 
+
+
+```{r}
+
+#Commented out because the simulations take a while to run -- instead I just ran it once, then saved it, so that
+#when we knit the Rmd later the simulations don't have to be run again and we can just use the results from that run. 
+
+# possible.ns <- seq(from=2000, to=20000, length.out = 15) # The sample sizes we'll be considering
+# powers <- rep(NA, length(possible.ns))           # Empty object to collect simulation estimates
+# alpha <- 0.05                                    # Standard significance level
+# sims <- 200                                      # Number of simulations to conduct for each N
+# tau <- .006                                      # Hypothesize CACE treatment effect
+# baseline.vote.rate <- 0.008                        # The expected voter turnout rate in placebo/control
+# 
+# #### Outer loop to vary the number of subjects ####
+# for (j in 1:length(possible.ns)){
+#   N <- possible.ns[j]                              # Pick the jth value for N
+#   
+#   significant.experiments <- rep(NA, sims)         # Empty object to count significant experiments
+#   message(N)
+#   #### Inner loop to conduct experiments "sims" times over for each N ####
+#   for (i in 1:sims){
+#     Y0 <-  rbinom(N, 1, baseline.vote.rate)        # control potential outcome
+#     Y1 <- rbinom(N, 1, baseline.vote.rate + tau)   # treatment potential outcome
+#     Z.sim <- rbinom(n=N, size=1, prob=.5)          # Do a random assignment
+#     Y.sim <- Y1*Z.sim + Y0*(1-Z.sim)               # Reveal outcomes according to assignment
+#     fit.sim <- lm(Y.sim ~ Z.sim)                   # Do analysis (Simple regression)
+#     p.value <- summary(fit.sim)$coefficients[2,4]  # Extract p-values
+#     significant.experiments[i] <- (p.value <= alpha) # Determine significance according to p <= 0.05
+#   }
+#   
+#   powers[j] <- mean(significant.experiments)       # store average success rate (power) for each N
+# }
+# tibble(possible.ns, powers) %>% 
+#   saveRDS(here("data/powers.RDS"))
+powers <- readRDS(here("data/powers.RDS"))
+
+powers %>% 
+  ggplot(aes(x = possible.ns, y = powers)) + 
+  geom_point(color = "steelblue4") + 
+  geom_hline(yintercept = .8, color = "red") + 
+  labs(x = "Sample size tested",y = "Expected power", 
+       title=  "Would increasing sample size help our experiment?",
+       subtitle = "Sort of, but there are bigger problems at hand.",
+       caption = "200 simulations per sample size were run, with a hypothetical CACE treatment effect of .006") +
+  theme_lato() + 
+  theme(panel.grid.minor = element_blank(), 
+        axis.title.y = element_text(hjust=  0.5, family = "Lato"), 
+        panel.border =  element_rect(size = 1, fill = NA)) + 
+  ggsave(here("figures/power.png"), width = 8, height = 5)
+
+
+
+```
+
+
+As we see below, although brute-forcing the experiment and increasing sample size would eventually lead us to a power above .8, such an experiment would likely require around 10,000 participants. In addition to being practically difficult, it also likely would still be theoretically strange (as the current observed effect favors static images over animated images in terms of student engagement and event registration) and the small magnitude in this experiment would mean this effect is probably inconsequential even if statistically significant. Instead of increasing the sample size, future experiments on this question should change research design as noted below. 
+
+
