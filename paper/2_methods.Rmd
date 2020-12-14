@@ -12,7 +12,13 @@ The purpose of this project was to discover if animated graphics lead to an incr
  
 4.	Animated bar graph of registered voters and turnout among racial lines in 2016
 
-These graphics were generated with the `ggplot2` and `showtext` packages, with the `gganimate` and `magick` packages in R to convert the static images into animated plots.^[An annoying issue was had in formatting, where custom fonts implemented via the `showtext` package somehow made random frames distorted in the `gganimate`d plots. These frames were manually removed and then the `magick` package was used to stitch the remaining frames back together, with the end result being a GIF that misses a few frames and therefore could have appeared rocky. After watching both sets of GIFs several times I decided this was a negligible issue.] The voter turnout trends since 1880 in the line graph was taken from the [United States Elections Project](http://www.electproject.org/national-1789-present), and the trends by race seen in the bar graphs came from the [U.S. Census Bureau](https://www.census.gov/data/tables/time-series/demo/voting-and-registration/voting-historical-time-series.html). 
+![](../figures/static_bar.png){ width=3in } ![](../figures/static_line.png){ width=3in }
+
+\begin{figure}[!h]
+\caption{The static versions of the bar and line plots.}
+\end{figure}
+
+These graphics were generated with the `ggplot2` and `showtext` packages, with the `gganimate` and `magick` packages in R to convert the static images into animated plots.^[An annoying issue was had in formatting, where custom fonts implemented via the `showtext` package somehow made random frames distorted in the `gganimate`d plots. These frames were manually removed and then the `magick` package was used to stitch the remaining frames back together, with the end result being a GIF that misses a few frames and therefore could have appeared rocky. After watching both sets of GIFs several times I decided this was a negligible issue.] The voter turnout trends since 1880 in the line graph was taken from the [United States Elections Project](http://www.electproject.org/national-1789-present), and the trends by race seen in the bar graphs came from the [U.S. Census Bureau](https://www.census.gov/data/tables/time-series/demo/voting-and-registration/voting-historical-time-series.html). Our animations can be viewed [here.](https://github.com/18kimn/sds315_finalproj/tree/main/figures)
  
 When deciding how to place people in certain treatment groups, we used a simple random sample. We used a random number generator to equally place the same number of people in each group. There are many statistical concepts that we could have used to increase our precision, but decided that it was not necessary. For example, we could have used blocked random assignment, which is arranging of experimental units in groups that are similar to one another, but we did not see any covariates that could play a factor in affecting our results. Initially, we thought about blocking by major because we believed political science majors would be more interested in civic engagement in comparision to STEM majors; however, we realized that many first year students were undecided, making blocking inappropriate.
 
@@ -25,7 +31,7 @@ We used Mailchimp and the Mailchimp API (through the `chimpr` package in R) to c
 
 To confirm that our randomization process was sound, we ran a balance check across residential college. If the treatment was distributed completely randomly, within each residential college, an even percentage of students should have received the treatment.
 
-As we see from Table 1 and Figure 1 below, though there are some discrepancies where some colleges had a disproportionate amount of students in one treatment group over another, we are overall reassured that the treatment was distributed randomly across college. 
+As we see from Table 1 and Figure 2 below, though there are some discrepancies where some colleges had a disproportionate amount of students in one treatment group over another, we are overall reassured that the treatment was distributed randomly across college. 
 
 ```{r balance_check,results = "asis"}
 
@@ -95,7 +101,7 @@ Trumbull & 26.32\% & 27.37\% & 22.11\% & 24.21\% \\
 \end{tabular} 
 \end{table} 
 
-```{r balance_check_plot, fig.width = 8, fig.height = 4}
+```{r balance_check_plot, fig.width = 8, fig.height = 5, fig.cap = "Our balance check in graphical form."}
 
 bcheck_plot <- bcheck %>% group_by(college, grp) %>% 
   count() %>% ungroup() %>% 
@@ -108,6 +114,7 @@ bcheck_plot <- bcheck %>% group_by(college, grp) %>%
        title = "Balance check of treatment receipt by residential college") + 
   scale_x_discrete(labels = function(x) str_wrap(x, width = 10)) + 
   scale_fill_manual(values = pal, labels = function(x) str_wrap(x, width =15)) + 
+  guides(fill = guide_legend(keyheight = 2)) + 
   theme(axis.text.x = element_text( size = 8, vjust = grid::unit(c(-.5, 1), "points")))
 bcheck_plot
 ggsave(here("figures/bcheck.png"), plot = bcheck_plot, width = 8, height = 4)
@@ -117,12 +124,12 @@ ggsave(here("figures/bcheck.png"), plot = bcheck_plot, width = 8, height = 4)
 
 ### Treatment noncompliance
 
-We then checked for treatment nonconcompliance; as we see in the following two figures, treatment noncompliance was unexpectedly a problem for our research design. Because the subject line of the emails were the same across all four treatment groups and each email was sent at the same time, we did not expect any difference to appear across the four treatment groups in terms of treatment receipt. However, as the chart below shows, the treatment group receiving an email with an animated bar chart and a static line chart opened the initial email at a much lower rate than the other three treatment groups. Just as confusingly, this trend disappears in the follow-up email. 
+We then checked for treatment nonconcompliance; as we see in Figure 3, treatment noncompliance was unexpectedly a problem for our research design. Because the subject line of the emails were the same across all four treatment groups and each email was sent at the same time, we did not expect any difference to appear across the four treatment groups in terms of treatment receipt. However, as the chart below shows, the treatment group receiving an email with an animated bar chart and a static line chart opened the initial email at a much lower rate than the other three treatment groups. Just as confusingly, this trend disappears in the follow-up email. 
 
 We aren't sure what happened here; as some classmates noted in their final project presentation, Yale SIS or Gmail could have labeled our email as spam in this case and many students may not have received the treatment. This still would not explain why only one treatment group was marked as spam, or why this did not happen with our follow-up emails. We proceed onward with a grain of salt at the ready, and limit our study from here to specifically those candidates that opened at least one email. 
 
 
-```{r cumulative_opens, width = 8, height =5}
+```{r cumulative_opens, fig.width = 7, fig.height =4, fig.cap = "Cumulative opens since the emails were sent."}
 
 cumu_opens <- reports %>% 
   ggplot(aes(x = time_diff, y = counter, color = str_wrap(grp, 15), linetype = set)) + 

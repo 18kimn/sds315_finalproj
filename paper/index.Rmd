@@ -4,6 +4,7 @@ subtitle: "A Final Project for S\\&DS315"
 author: "Deon Ababio, Alex Gordon, and Nathan Kim"
 date: "December 11th, 2020"
 output: pdf_document
+urlcolor: blue
 ---
 
 ```{r setup, include=FALSE}

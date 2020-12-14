@@ -45,7 +45,7 @@ full_join(second_opens, clicks, by = "grp") %>%
 
 
 
-```{r summary_chart}
+```{r summary_chart, fig.cap = "Bar plot of response variables."}
 summary_chart <- full_join(second_opens, clicks, by = "grp") %>% 
   rename(`Treatment Group` = grp,
          `Opened email a second time` = open_freq,
@@ -122,7 +122,7 @@ stargazer(mod1,  header = F,
 Evidently, our research design did not find a significant difference between the animation group and the control group. But instead of being a problem of how our treatment was implemented, it could have been simply an issue of not having enough participants. We purposefully cast quite a large net (the entire first year class, a total of 1,265 students) to avoid this issue, but maybe a future experiment could go even larger and thus find significance. We ran a power analysis to find how increasing sample size could help our search for power, specifically testing fifteen sample sizes from 2,000 to 20,000 participants and a hypothesized treatment effect of .006, with 200 simulated experiments each. 
 
 
-```{r}
+```{r, fig.width = 7, fig.height =4, fig.cap = "Power analysis."}
 
 #Commented out because the simulations take a while to run -- instead I just ran it once, then saved it, so that
 #when we knit the Rmd later the simulations don't have to be run again and we can just use the results from that run. 
@@ -176,6 +176,6 @@ powers %>%
 ```
 
 
-As we see below, although brute-forcing the experiment and increasing sample size would eventually lead us to a power above .8, such an experiment would likely require around 10,000 participants. In addition to being practically difficult, it also likely would still be theoretically strange (as the current observed effect favors static images over animated images in terms of student engagement and event registration) and the small magnitude in this experiment would mean this effect is probably inconsequential even if statistically significant. Instead of increasing the sample size, future experiments on this question should change research design as noted below. 
+As we see in Figure 4, although brute-forcing the experiment and increasing sample size would eventually lead us to a power above .8, such an experiment would likely require around 10,000 participants. In addition to being practically difficult, it also likely would still be theoretically strange (as the current observed effect favors static images over animated images in terms of student engagement and event registration) and the small magnitude in this experiment would mean this effect is probably inconsequential even if statistically significant. Instead of increasing the sample size, future experiments on this question should change research design as noted below. 
 
 
