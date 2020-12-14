@@ -3,9 +3,9 @@
 
 The coronavirus pandemic has affected nearly every aspect of the Yale student experience. Most notably, classes have been moved onto Zoom, but students are still learning. It is what takes place beyond the classroom that is of particular interest: extracurricular participation. The traditional activities bazaar was held virtually, with clubs making online booths; however, due to the lack of in-person recruitment tactics, such as food events, welcome meetings, and getting to know club members through socials, clubs needed to get creative in how they marketed to the incoming first-year class. 
 
-The Yale Entrepreneurial Society, the Yale Scholars of Finance, and the Yale Undergraduate Consulting Group, for example, sent out mass emails to the student body in hopes of increasing attendance at their recruitment events. In an online environment, email appeared to be the best approach to connecting with Yalies. 
+The Yale Entrepreneurial Society, the Yale Scholars of Finance, and the Yale Undergraduate Consulting Group, for example, sent out mass emails to the student body in hopes of increasing attendance at their recruitment events.^[These can be viewed at the bottom of our paper.] In an online environment, email appeared to be the best approach to connecting with Yalies. 
 
-But what kind of email will get the most attendance? To find out, we conducted a randomized field experiment with to compare the efficacy of static and animated email graphics. We developed a new club on campus, the Yale Society for Civic Engagement, and invited the entire first-year class to attend our virtual election watch party. 
+But what kind of email will get the most attendance? To find out, we conducted a randomized field experiment to compare the efficacy of static and animated email graphics. We developed a new club on campus, the Yale Students for Civic Engagement, and invited the entire first-year class to attend our virtual election watch party. 
 
 We randomized 1265 first-years into one of four treatments: 1) two static graphs (control group), 2) one static graph and one animated graph, 3) one animated graph and one static graph, and 4) two animated graphs. In the end, we found no statistically significant difference in the RSVP rate between the various assignments.
 
@@ -13,11 +13,11 @@ This paper will answer our research question: Do animated graphs increase the ef
 
 # Hypotheses
 
-It stands to reason that the design of the graph that gets the most response should be the one that is the most attractive. Literature on the use of data visualization testifies that animated graphics can be exciting ways to show trends in data with multiple dimensions. Robertson, et al confirm “[trend animation] is the fastest technique for presentation and participants find it enjoyable and exciting”, but they also found that the motion can occasionally lead to participant confusion (Robertson et al. 2008). [1]
+It stands to reason that the design of the graph that gets the most response should be the one that is the most attractive. Literature on the use of data visualization testifies that animated graphics can be exciting ways to show trends in data with multiple dimensions. Robertson, et al confirm “[trend animation] is the fastest technique for presentation and participants find it enjoyable and exciting”, but they also found that the motion can occasionally lead to participant confusion (Robertson et al. 2008).^[Robertson, George et al. “Effectiveness of animation in trend visualization.” IEEE transactions on visualization and computer graphics vol. 14,6 (2008): 1325-32. doi:10.1109/TVCG.2008.125]
 
 Insofar as the graphs we are animating are straightforward bar and line charts, we think that the tradeoff in confusion is minimal compared to the increased attention-getting ability of the animation. The application of our research is not to increase understanding of information, but to increase event attendance by getting subjects to read an email. If a viewer as drawn in by the animated graph, we expect them to continue reading through the email, and to be more likely to RSVP.
 
-Therefore, hypothesize that the treatment group shown two animated graphs in the body of the recruitment email will yield the greatest share of event RSVPs. The treatment groups with one animated and one static graph will yield the second greatest share of event RSVPs. And the control group shown two static graphs will yield the least share of event RSVPs. More generally, we can write out this hypothesis as the following:
+Therefore, we hypothesize that the treatment group shown two animated graphs in the body of the recruitment email will yield the greatest share of event RSVPs. The treatment groups with one animated and one static graph will yield the second greatest share of event RSVPs. And the control group shown two static graphs will yield the least share of event RSVPs. More generally, we can write out this hypothesis as the following:
 
   H1: Emails with animated graphs will receive a different proportion of RSVPs than emails with static graphs.
   
@@ -25,5 +25,3 @@ We also wanted to test whether there was an impact of animating just the bar gra
 
   H2: Emails with animated line/static bar graphs will receive a different proportion of RSVPs than emails with static line/animated bar graphs.
 
-
-[1] Robertson, George et al. “Effectiveness of animation in trend visualization.” IEEE transactions on visualization and computer graphics vol. 14,6 (2008): 1325-32. doi:10.1109/TVCG.2008.125
